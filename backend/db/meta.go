@@ -12,9 +12,9 @@ type PromptMeta struct {
 }
 
 type InterestMeta struct {
-	ID       int    `json:"id"`
-	Name     string `json:"name"`
-	Category string `json:"category"`
+	ID       int     `json:"id"`
+	Name     string  `json:"name"`
+	Category *string `json:"category,omitempty"`
 }
 
 func GetAllPrompts() ([]PromptMeta, error) {
@@ -49,7 +49,7 @@ func GetAllInterests() ([]InterestMeta, error) {
 		 ORDER BY category, name`,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("query interests: %w", err)
+		return []InterestMeta{}, fmt.Errorf("query interests: %w", err)
 	}
 	defer rows.Close()
 
@@ -57,7 +57,7 @@ func GetAllInterests() ([]InterestMeta, error) {
 	for rows.Next() {
 		var it InterestMeta
 		if err := rows.Scan(&it.ID, &it.Name, &it.Category); err != nil {
-			return nil, fmt.Errorf("scan interest: %w", err)
+			return []InterestMeta{}, fmt.Errorf("scan interest: %w", err)
 		}
 		out = append(out, it)
 	}

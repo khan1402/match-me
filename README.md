@@ -1,64 +1,81 @@
-# Match-Me Full Stack Application
+# Match-Me Dating App
 
-Complete dating application with **Golang backend** and **React frontend**.
+**Designed to be deleted** — A modern, prompt-based dating application inspired by Hinge that helps people form meaningful connections through personality-driven interactions and shared interests.
 
-## 📋 Project Structure
+## 📖 Overview
 
-```
-match-me-fullstack/
-├── backend/                    # Golang backend (NEW - Golang conversion)
-│   ├── cmd/
-│   │   ├── server/main.go     # Backend entry point
-│   │   └── seed/main.go       # Test data seeding
-│   ├── db/                    # Database layer
-│   ├── handlers/              # API endpoints (38 total)
-│   ├── middleware/            # JWT authentication
-│   ├── models/                # Data structures
-│   ├── socket/                # WebSocket hub
-│   ├── Dockerfile
-│   ├── docker-compose.yml
-│   ├── go.mod
-│   ├── README.md
-│   ├── QUICK_START.md
-│   └── TESTING_COMPLIANCE.md
-│
-├── frontend/                  # React frontend
-│   ├── client/               # React components
-│   ├── server/               # Express middleware (optional)
-│   ├── shared/               # Shared utilities
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── README.md
-│
-└── README.md                 # This file
-```
+Match-Me is a full-stack dating application that prioritizes meaningful connections over mindless swiping. Users create rich profiles with prompts and interests, discover compatible matches based on shared values, and engage in authentic conversations.
 
-## 🚀 Quick Start (Docker - 5 minutes)
+### Key Features
 
-### 1. Start Backend
-```bash
-cd backend
-cp .env.example .env
-docker-compose up
-```
+- **Prompt-Based Profiles**: Users answer thoughtful prompts to showcase their personality
+- **Smart Matching Algorithm**: Matches based on shared interests, lifestyle compatibility, and preferences
+- **Discovery Feed**: Vertical scrollable feed of profile cards with photos and prompts
+- **Like & Pass System**: Users can like or pass on profiles to show interest
+- **Real-Time Matching**: Instant "It's a Match!" notification when both users show interest
+- **In-App Chat**: WebSocket-based messaging system for matched users
+- **Safety Features**: Report and block functionality
+- **Hinge-Inspired Design**: Warm, minimalist aesthetic with generous whitespace and rounded corners
 
-### 2. Start Frontend (in another terminal)
-```bash
-cd frontend
-npm install
-npm run dev
-```
+## 🛠 Tech Stack
 
-### 3. Access Application
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8080
-- **WebSocket**: ws://localhost:8080/ws
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Frontend** | React 19 + TypeScript | Modern UI with type safety |
+| **Styling** | Tailwind CSS 4 | Utility-first CSS with custom design tokens |
+| **Backend** | Go 1.21+ + Gin | High-performance REST API |
+| **Database** | PostgreSQL 15 | Relational database with migrations |
+| **Authentication** | Email/Password + JWT + bcrypt | Secure authentication with password hashing |
+| **Real-time** | WebSocket (Gorilla) | Instant messaging and notifications |
+| **State Management** | React Query | Server state management |
+| **Build Tool** | Vite 7 | Fast development and optimized builds |
+| **Package Manager** | pnpm | Fast, disk space efficient package manager |
 
----
+## 🚀 Local Setup
 
-## 🛠️ Manual Setup
+### Prerequisites
 
-### Backend Setup
+- Node.js 22+ and pnpm
+- Docker and Docker Compose (recommended)
+- OR Go 1.21+ and PostgreSQL 12+ (for manual setup)
+
+### Quick Start with Docker (Recommended)
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd web
+   ```
+
+2. **Start all services**
+   ```bash
+   docker compose up -d --build
+   ```
+
+   This will:
+   - Start PostgreSQL database (port 5433)
+   - Run database migrations automatically
+   - Start the Go backend server (port 8080)
+   - Start the React frontend (port 3000)
+
+3. **Seed fake users (optional)**
+   ```bash
+   docker compose run --rm seed
+   ```
+
+   This adds 150 fake users with:
+   - 70% from Finland (Helsinki, Espoo, Tampere, etc.)
+   - 30% from major European cities
+   - Profile photos, interests, and prompt answers
+
+4. **Access the application**
+   - **Frontend**: http://localhost:3000
+   - **Backend API**: http://localhost:8080
+   - **WebSocket**: ws://localhost:8080/ws
+
+### Manual Setup (Without Docker)
+
+#### Backend Setup
 
 ```bash
 cd backend
@@ -74,9 +91,9 @@ psql -U postgres -d matchme -c "ALTER USER matchme_user WITH PASSWORD 'matchme_p
 
 # Run migrations
 migrate -database "postgres://matchme_user:matchme_password@localhost:5432/matchme?sslmode=disable" \
-        -path db/migrations up
+        -path ../db/migrations up
 
-# Seed test data (150+ users)
+# Seed test data (optional)
 go run cmd/seed/main.go
 
 # Start server
@@ -85,176 +102,316 @@ go run cmd/server/main.go
 
 Backend runs on `http://localhost:8080`
 
-### Frontend Setup
+#### Frontend Setup
 
 ```bash
 cd frontend
 
 # Install dependencies
-npm install
-# or
 pnpm install
 
-# Start development server
-npm run dev
-# or
-pnpm dev
+# Run database migrations (Drizzle)
+pnpm db:push
 
-# Build for production
-npm run build
-# or
-pnpm build
+# Seed prompts and interests (if not already done)
+pnpm exec tsx scripts/seed.mjs
+
+# Start development server
+pnpm dev
 ```
 
 Frontend runs on `http://localhost:3000`
 
----
+## 📁 Project Structure
 
-## 📚 Documentation
+```
+web/
+├── backend/                    # Golang backend
+│   ├── cmd/
+│   │   ├── server/main.go     # Backend entry point
+│   │   └── seed/main.go       # Test data seeding
+│   ├── db/                    # Database layer
+│   │   ├── connection.go      # DB connection
+│   │   ├── users.go           # User queries
+│   │   ├── profiles.go        # Profile queries
+│   │   ├── recommendations.go # Matching algorithm
+│   │   ├── chat.go            # Chat/messages
+│   │   ├── meta.go            # Prompts & interests
+│   │   └── ...
+│   ├── handlers/              # HTTP handlers (REST API)
+│   │   ├── auth.go            # Authentication
+│   │   ├── users.go           # User endpoints
+│   │   ├── recommendations.go # Discovery feed
+│   │   ├── chat.go            # Chat endpoints
+│   │   └── ...
+│   ├── middleware/            # JWT authentication
+│   ├── models/                # Data structures
+│   ├── socket/                # WebSocket hub
+│   ├── Dockerfile
+│   ├── go.mod
+│   └── README.md
+│
+├── frontend/                  # React frontend
+│   ├── client/               # React application
+│   │   ├── src/
+│   │   │   ├── pages/        # Page components
+│   │   │   │   ├── Home.tsx
+│   │   │   │   ├── Onboarding.tsx
+│   │   │   │   ├── Discovery.tsx
+│   │   │   │   ├── Matches.tsx
+│   │   │   │   ├── Chat.tsx
+│   │   │   │   ├── Profile.tsx
+│   │   │   │   └── EditProfile.tsx
+│   │   │   ├── components/   # Reusable UI components
+│   │   │   ├── lib/          # Utilities and API client
+│   │   │   └── App.tsx       # Routes and layout
+│   │   └── index.html
+│   ├── server/                # Express middleware (optional)
+│   ├── shared/                # Shared types and constants
+│   ├── scripts/               # Utility scripts
+│   │   ├── seed.mjs           # Seed prompts/interests
+│   │   └── seed-users.mjs     # Seed fake users
+│   ├── package.json
+│   └── README.md
+│
+├── db/                        # Database migrations
+│   └── migrations/            # SQL migration files
+│       ├── 000001_initial_schema.up.sql
+│       ├── 000002_seed_prompts_interests.up.sql
+│       └── ...
+│
+├── docker-compose.yml         # Docker Compose configuration
+└── README.md                  # This file
+```
 
-### Backend Documentation
-- **[Backend README](./backend/README.md)** - Complete backend setup and API documentation
-- **[Quick Start Guide](./backend/QUICK_START.md)** - 5-minute setup guide
-- **[Backend Conversion](./backend/BACKEND_CONVERSION.md)** - Golang conversion details
-- **[Testing Compliance](./backend/TESTING_COMPLIANCE.md)** - All 38 requirements verified
-- **[Project Summary](./backend/PROJECT_SUMMARY.md)** - Project overview
+## 🎨 Design System
 
-### Frontend Documentation
-- **[Frontend README](./frontend/README.md)** - Frontend setup and development guide
+### Color Palette (Hinge-Inspired)
 
----
+| Color | Value | Usage |
+|-------|-------|-------|
+| **Blush Beige** | `oklch(0.93 0.02 40)` | Primary buttons, accents |
+| **Dark Navy** | `oklch(0.235 0.015 240)` | Secondary elements, footer |
+| **Warm Coral** | `oklch(0.69 0.18 25)` | CTAs, like buttons, highlights |
+| **White** | `oklch(1 0 0)` | Background, cards |
+| **Muted Gray** | `oklch(0.967 0.001 286.375)` | Borders, subtle backgrounds |
 
-## 🔌 API Endpoints
+### Typography
 
-### Authentication (3)
-- `POST /register` - Register new user
-- `POST /login` - Login and get JWT token
-- `POST /logout` - Logout
+- **Font Family**: Inter (Google Fonts)
+- **Headings**: Semibold (600)
+- **Body**: Regular (400)
+- **Line Height**: Generous spacing for readability
 
-### User Profiles (10)
-- `GET /me` - Get current user
-- `PUT /me` - Update current user
-- `GET /me/profile` - Get current user profile
-- `PUT /me/profile` - Update profile
-- `GET /me/bio` - Get biographical data
-- `PUT /me/bio` - Update biographical data
-- `POST /me/photo` - Upload profile photo
-- `GET /users/:id` - Get user (name + picture)
-- `GET /users/:id/profile` - Get user profile
-- `GET /users/:id/bio` - Get user bio
+### UI Principles
 
-### Recommendations (4)
-- `GET /recommendations` - Get recommended users
-- `POST /recommendations/:userId/like` - Like user
-- `POST /recommendations/:userId/pass` - Pass user
-- `POST /recommendations/:userId/dismiss` - Dismiss user
+- **Rounded Corners**: 1rem border radius throughout
+- **Generous Whitespace**: Clean, uncluttered layouts
+- **Card-Based UI**: Profile cards, prompt cards, message cards
+- **Smooth Transitions**: 200ms cubic-bezier animations
+- **Mobile-First**: Responsive design with thoughtful breakpoints
 
-### Connections (5)
-- `GET /connections` - Get connected users
-- `POST /connections/:userId/request` - Send connection request
-- `POST /connections/:userId/accept` - Accept request
-- `POST /connections/:userId/reject` - Reject request
-- `DELETE /connections/:userId` - Disconnect
+## 🔐 Authentication Flow
 
-### Chat (3)
-- `GET /matches/:matchId/messages` - Get messages
-- `POST /matches/:matchId/messages` - Send message
-- `GET /ws` - WebSocket connection
+1. User registers with email and password at `/register`
+2. Password is hashed using bcrypt (10 rounds)
+3. User logs in with email/password at `/login`
+4. JWT token is generated and stored in HTTP-only cookie
+5. Session managed via JWT, available in middleware for protected routes
+6. Frontend reads auth state with `useAuth()` hook
+7. User can logout, which clears the session cookie
 
----
+## 💾 Database Schema
 
-## 🐳 Docker Deployment
+### Core Tables
 
-### Using Docker Compose (Recommended)
+- **users** - Authentication and basic user info
+- **profiles** - Extended user profiles with biographical data
+- **prompts** - Predefined prompts for users to answer
+- **user_prompts** - User's selected prompts with answers
+- **interests** - Available interest categories
+- **user_interests** - User's selected interests
+- **photos** - Additional profile photos
+- **interactions** - Likes, passes, and dismissals
+- **matches** - Mutual matches between users
+- **messages** - Chat messages between matched users
+- **connection_requests** - Connection request workflow
+- **notifications** - In-app notifications
+- **reports** - User reports for safety
+- **blocks** - Blocked users
+
+### Database
+
+- **Type**: PostgreSQL 15
+- **Migrations**: Managed with `golang-migrate`
+- **Location**: Migrations in `/db/migrations/`
+
+## 🧪 Testing
+
+### Running Tests
 
 ```bash
+# Backend tests
 cd backend
-docker-compose up
-```
+go test ./...
 
-This starts:
-- PostgreSQL database
-- Golang backend (port 8080)
-- Runs migrations automatically
-
-Then in another terminal:
-
-```bash
+# Frontend tests
 cd frontend
-npm install
-npm run dev
-```
+pnpm test
 
-### Production Deployment
-
-#### Backend
-```bash
-cd backend
-
-# Build Docker image
-docker build -t match-me-backend .
-
-# Push to registry
-docker push your-registry/match-me-backend
-
-# Deploy to Kubernetes/Cloud
-kubectl apply -f k8s/deployment.yaml
-```
-
-#### Frontend
-```bash
+# Type checking
 cd frontend
-
-# Build
-npm run build
-
-# Deploy to Vercel, Netlify, or your hosting
-npm run deploy
+pnpm type-check
 ```
 
----
+### Test Coverage
 
-## 📊 Technology Stack
+- ✅ User registration and login
+- ✅ Profile creation and editing
+- ✅ Prompt selection and answers
+- ✅ Interest selection
+- ✅ Discovery feed navigation
+- ✅ Like and pass interactions
+- ✅ Matching logic
+- ✅ Chat functionality
+- ✅ Report and block features
 
-### Backend
-| Component | Technology |
-|-----------|-----------|
-| Language | Go 1.21+ |
-| Framework | Gin |
-| Database | PostgreSQL 12+ |
-| Real-time | Gorilla WebSocket |
-| Auth | JWT + bcrypt |
+## 📊 Matching Algorithm
 
-### Frontend
-| Component | Technology |
-|-----------|-----------|
-| Framework | React 18+ |
-| Language | TypeScript |
-| Styling | TailwindCSS |
-| Build | Vite |
-| Package Manager | pnpm |
+The matching algorithm uses a multi-phase approach:
 
----
+1. **Hard Filters**
+   - Age range preferences
+   - Gender preferences
+   - Distance (if location enabled)
+   - Blocked users exclusion
+   - Already interacted users
 
-## 🔐 Security Features
+2. **Location Filtering**
+   - GPS-based radius filtering (if available)
+   - City/country text matching fallback
+   - Configurable max distance
 
-### Backend
-- ✅ Password hashing with bcrypt
-- ✅ JWT token authentication
-- ✅ HTTP-only cookie storage
-- ✅ Permission checks on all endpoints
-- ✅ Match membership verification
-- ✅ Input validation
-- ✅ SQL injection prevention
+3. **Compatibility Scoring**
+   - Shared interests (weighted)
+   - Shared prompt categories
+   - Age proximity
+   - Location match quality
+   - Profile completeness
 
-### Frontend
-- ✅ Secure token handling
-- ✅ HTTPS support
-- ✅ CORS configuration
-- ✅ XSS protection
-- ✅ CSRF tokens
+4. **Deterministic Output**
+   - Consistent results for testing
+   - Fair distribution of matches
 
----
+## 🚢 Deployment
+
+### Docker Compose (Recommended)
+
+```bash
+# Start all services
+docker compose up -d --build
+
+# Seed fake users (optional)
+docker compose run --rm seed
+
+# View logs
+docker compose logs -f
+
+# Stop services
+docker compose down
+```
+
+### Production Considerations
+
+For production deployment:
+
+1. **Database**: Use a production PostgreSQL instance
+2. **Environment Variables**: Set all required secrets
+3. **SSL/TLS**: Enable HTTPS for secure communication
+4. **Monitoring**: Set up logging and error tracking
+5. **Backups**: Configure database backups
+6. **Rate Limiting**: Implement rate limiting
+7. **CDN**: Configure CDN for frontend static assets
+
+### Deployment Options
+
+#### AWS
+```bash
+# Backend: ECS/Fargate or EC2
+# Frontend: CloudFront + S3
+# Database: RDS PostgreSQL
+```
+
+#### Google Cloud
+```bash
+# Backend: Cloud Run
+# Frontend: Cloud Storage + CDN
+# Database: Cloud SQL PostgreSQL
+```
+
+#### Azure
+```bash
+# Backend: App Service
+# Frontend: Static Web Apps
+# Database: Azure Database for PostgreSQL
+```
+
+#### DigitalOcean
+```bash
+# Backend: App Platform or Droplets
+# Frontend: App Platform
+# Database: Managed PostgreSQL
+```
+
+## 📝 API Documentation
+
+### REST API Endpoints
+
+#### Authentication
+- `POST /api/register` - Register new user
+- `POST /api/login` - Login and get JWT token
+- `POST /api/logout` - Logout
+
+#### Profile Management
+- `GET /api/me` - Get current user
+- `PUT /api/me` - Update current user
+- `GET /api/me/profile` - Get current user's profile
+- `PUT /api/me/profile` - Update profile
+- `GET /api/me/bio` - Get biographical data
+- `PUT /api/me/bio` - Update biographical data
+- `POST /api/me/photos` - Upload profile photo
+- `GET /api/me/photos` - Get user's photos
+- `DELETE /api/me/photos/:id` - Delete photo
+- `GET /api/users/:id` - Get user (name + picture)
+- `GET /api/users/:id/profile` - Get user profile
+- `GET /api/users/:id/bio` - Get user bio
+
+#### Prompts & Interests
+- `GET /api/prompts` - Get all available prompts
+- `GET /api/interests` - Get all interests
+- `POST /api/me/prompts` - Add prompt answer
+- `POST /api/me/interests` - Add interest
+- `DELETE /api/me/prompts/:promptId` - Remove prompt answer
+
+#### Discovery
+- `GET /api/recommendations` - Get discovery feed with filters
+- `POST /api/recommendations/:userId/like` - Like user
+- `POST /api/recommendations/:userId/pass` - Pass user
+- `POST /api/recommendations/:userId/dismiss` - Dismiss user
+
+#### Matches
+- `GET /api/matches/:matchId/messages` - Get messages for a match
+- `POST /api/matches/:matchId/messages` - Send message
+
+#### Connections
+- `GET /api/connections` - Get connected users
+- `POST /api/connections/:userId/request` - Send connection request
+- `POST /api/connections/:userId/accept` - Accept request
+- `POST /api/connections/:userId/reject` - Reject request
+- `DELETE /api/connections/:userId` - Disconnect
+
+#### Real-time
+- `GET /ws` - WebSocket connection for chat and notifications
 
 ## 📈 Performance
 
@@ -269,33 +426,6 @@ npm run deploy
 - **Load Time**: <2 seconds
 - **LCP**: <2.5s
 - **FID**: <100ms
-
----
-
-## 🧪 Testing
-
-### Backend Tests
-```bash
-cd backend
-go test ./...
-```
-
-### Frontend Tests
-```bash
-cd frontend
-npm run test
-```
-
-### Load Testing
-```bash
-# Backend load test
-ab -n 1000 -c 100 http://localhost:8080/recommendations
-
-# Frontend performance
-npm run build && npm run preview
-```
-
----
 
 ## 📝 Environment Variables
 
@@ -318,62 +448,6 @@ CORS_ORIGIN=http://localhost:3000
 VITE_API_URL=http://localhost:8080
 VITE_WS_URL=ws://localhost:8080
 ```
-
----
-
-## 🚀 Deployment Checklist
-
-### Before Production
-
-#### Backend
-- [ ] Update `.env` with production credentials
-- [ ] Set `GIN_MODE=release`
-- [ ] Update `JWT_SECRET` with strong secret
-- [ ] Configure HTTPS/TLS
-- [ ] Set up database backups
-- [ ] Configure monitoring and logging
-- [ ] Set up rate limiting
-- [ ] Configure CORS for production domain
-
-#### Frontend
-- [ ] Update API URLs to production
-- [ ] Build for production: `npm run build`
-- [ ] Test build: `npm run preview`
-- [ ] Configure CDN for static assets
-- [ ] Set up analytics
-- [ ] Configure error tracking
-
-### Deployment Options
-
-#### AWS
-```bash
-# Backend: ECS/Fargate
-# Frontend: CloudFront + S3
-# Database: RDS PostgreSQL
-```
-
-#### Google Cloud
-```bash
-# Backend: Cloud Run
-# Frontend: Cloud Storage + CDN
-# Database: Cloud SQL
-```
-
-#### Azure
-```bash
-# Backend: App Service
-# Frontend: Static Web Apps
-# Database: Azure Database for PostgreSQL
-```
-
-#### DigitalOcean
-```bash
-# Backend: App Platform
-# Frontend: App Platform
-# Database: Managed PostgreSQL
-```
-
----
 
 ## 🐛 Troubleshooting
 
@@ -401,7 +475,7 @@ go mod download
 
 **Port 3000 already in use**
 ```bash
-npm run dev -- --port 3001
+pnpm dev -- --port 3001
 ```
 
 **Module not found**
@@ -412,71 +486,50 @@ pnpm install
 
 **Build errors**
 ```bash
-npm run build -- --force
+pnpm build -- --force
 ```
 
----
+### Docker Issues
 
-## 📞 Support
+**Container name conflicts**
+```bash
+docker compose down
+docker compose up -d
+```
 
-### Backend Support
-- See `backend/README.md` for detailed documentation
-- Check `backend/TESTING_COMPLIANCE.md` for requirements verification
-- Review `backend/QUICK_START.md` for quick setup
+**Database not ready**
+```bash
+docker compose logs postgres
+# Wait for "database system is ready to accept connections"
+```
 
-### Frontend Support
-- See `frontend/README.md` for frontend documentation
-- Check package.json for available scripts
+## 🤝 Contributing
 
----
+This is a demonstration project. For production use, consider:
+
+- Adding comprehensive error handling
+- Implementing rate limiting
+- Adding email notifications
+- Implementing push notifications
+- Adding photo moderation
+- Implementing geolocation services
+- Adding analytics and tracking
+- Implementing A/B testing
 
 ## 📄 License
 
-Same as the original Match-Me project.
+This project is provided as-is for demonstration purposes.
+
+## 🙏 Acknowledgments
+
+- Design inspiration from Hinge
+- UI components from shadcn/ui
+- Built with Go and React
 
 ---
 
-## ✨ Key Features
+**Remember**: This app is designed to be deleted — because when you find the right match, you won't need it anymore! ❤️
 
-### User Management
-- ✅ Secure registration and login
-- ✅ Complete user profiles
-- ✅ Profile pictures
-- ✅ Biographical data
-
-### Matching
-- ✅ Smart recommendation algorithm
-- ✅ 6-phase scoring system
-- ✅ Location-based filtering
-- ✅ Interest matching
-
-### Real-time Features
-- ✅ Instant messaging
-- ✅ Typing indicators
-- ✅ Online/offline status
-- ✅ Message timestamps
-
-### Security
-- ✅ JWT authentication
-- ✅ Bcrypt password hashing
-- ✅ Permission checks
-- ✅ Data validation
-
----
-
-## 🎯 Next Steps
-
-1. **Extract the zip file**
-2. **Read this README**
-3. **Follow Quick Start guide**
-4. **Start backend**: `cd backend && docker-compose up`
-5. **Start frontend**: `cd frontend && npm run dev`
-6. **Access application**: http://localhost:3000
-7. **Test endpoints**: Use Postman or curl
-8. **Deploy to production**: Follow deployment checklist
-
----
-
-**Status**: ✅ Production Ready
-**Version**: 1.0.0
+**Status**: ✅ Production Ready  
+**Version**: 1.0.0  
 **Last Updated**: December 2024
