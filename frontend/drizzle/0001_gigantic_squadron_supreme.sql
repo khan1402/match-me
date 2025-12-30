@@ -1,0 +1,1 @@
+ALTER TABLE "profiles" ADD COLUMN "maxDistanceKm" integer DEFAULT 50 NOT NULL;

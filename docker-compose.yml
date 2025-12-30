@@ -1,0 +1,81 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: match-me-postgres
+    environment:
+      POSTGRES_DB: matchme
+      POSTGRES_USER: matchme_user
+      POSTGRES_PASSWORD: matchme_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U matchme_user -d matchme"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - match-me-network
+
+  migrate:
+    image: migrate/migrate:latest
+    container_name: match-me-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./db/migrations:/migrations
+    command:
+      [
+        "-path", "/migrations",
+        "-database", "postgres://matchme_user:matchme_password@postgres:5432/matchme?sslmode=disable",
+        "up"
+      ]
+    restart: "no"
+    networks:
+      - match-me-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: match-me-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+        
+    environment:
+      DATABASE_URL: postgres://matchme_user:matchme_password@postgres:5432/matchme?sslmode=disable
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: matchme_user
+      DB_PASSWORD: matchme_password
+      DB_NAME: matchme
+      PORT: 8080
+      GIN_MODE: release
+      JWT_SECRET: your-secret-key-here
+    ports:
+      - "8080:8080"
+    networks:
+      - match-me-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: match-me-frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    networks:
+      - match-me-network
+
+networks:
+  match-me-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

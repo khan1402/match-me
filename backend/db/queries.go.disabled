@@ -1,0 +1,436 @@
+package db
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"time"
+
+	"match-me/models"
+)
+
+// CreateUser creates a new user
+func CreateUser(email, passwordHash, name string) (*models.User, error) {
+	user := &models.User{
+		Email:        email,
+		PasswordHash: passwordHash,
+		Name:         name,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	err := DB.QueryRowContext(
+		context.Background(),
+		`INSERT INTO users (email, password, name, createdAt, updatedAt)
+		 VALUES ($1, $2, $3, $4, $5)
+		 RETURNING id`,
+		email, passwordHash, name, user.CreatedAt, user.UpdatedAt,
+	).Scan(&user.ID)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	return user, nil
+}
+
+// GetUserByEmail retrieves a user by email
+func GetUserByEmail(email string) (*models.User, error) {
+	user := &models.User{}
+	err := DB.QueryRowContext(
+		context.Background(),
+		`SELECT id, email, password, name, createdAt, updatedAt FROM users WHERE email = $1`,
+		email,
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Name, &user.CreatedAt, &user.UpdatedAt)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// GetUserByID retrieves a user by ID
+func GetUserByID(userID int) (*models.User, error) {
+	user := &models.User{}
+	err := DB.QueryRowContext(
+		context.Background(),
+		`SELECT id, email, password, name, createdAt, updatedAt FROM users WHERE id = $1`,
+		userID,
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Name, &user.CreatedAt, &user.UpdatedAt)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// UpdateUser updates a user's name
+func UpdateUser(userID int, name string) error {
+	_, err := DB.ExecContext(
+		context.Background(),
+		`UPDATE users SET name = $1, updatedAt = NOW() WHERE id = $2`,
+		name, userID,
+	)
+	return err
+}
+
+// CreateProfile creates a new user profile
+func CreateProfile(profile *models.Profile) error {
+	_, err := DB.ExecContext(
+		context.Background(),
+		`INSERT INTO profiles (userId, firstName, lastName, age, gender, lookingFor, bio, location, latitude, longitude, maxDistanceKm, isProfileComplete)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+		profile.UserID, profile.FirstName, profile.LastName, profile.Age, profile.Gender,
+		profile.LookingFor, profile.Bio, profile.Location, profile.Latitude, profile.Longitude,
+		profile.MaxDistanceKm, profile.IsProfileComplete,
+	)
+	return err
+}
+
+// GetProfileByUserID retrieves a profile by user ID
+func GetProfileByUserID(userID int) (*models.Profile, error) {
+	profile := &models.Profile{}
+	err := DB.QueryRowContext(
+		context.Background(),
+		`SELECT id, userId, firstName, lastName, age, gender, lookingFor, bio, location, latitude, longitude, maxDistanceKm, profilePhotoUrl, isProfileComplete, isVerified, createdAt, updatedAt
+		 FROM profiles WHERE userId = $1`,
+		userID,
+	).Scan(&profile.ID, &profile.UserID, &profile.FirstName, &profile.LastName, &profile.Age, &profile.Gender,
+		&profile.LookingFor, &profile.Bio, &profile.Location, &profile.Latitude, &profile.Longitude,
+		&profile.MaxDistanceKm, &profile.ProfilePhotoURL, &profile.IsProfileComplete, &profile.IsVerified, &profile.CreatedAt, &profile.UpdatedAt)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return profile, nil
+}
+
+// UpdateProfile updates a user's profile
+func UpdateProfile(profile *models.Profile) error {
+	_, err := DB.ExecContext(
+		context.Background(),
+		`UPDATE profiles SET firstName = $1, lastName = $2, age = $3, gender = $4, lookingFor = $5, bio = $6, location = $7, latitude = $8, longitude = $9, maxDistanceKm = $10, isProfileComplete = $11, updatedAt = NOW()
+		 WHERE userId = $12`,
+		profile.FirstName, profile.LastName, profile.Age, profile.Gender, profile.LookingFor,
+		profile.Bio, profile.Location, profile.Latitude, profile.Longitude, profile.MaxDistanceKm,
+		profile.IsProfileComplete, profile.UserID,
+	)
+	return err
+}
+
+// GetBioByUserID retrieves biographical data for a user
+func GetBioByUserID(userID int) (*models.Bio, error) {
+	bio := &models.Bio{UserID: userID}
+
+	// Get interests
+	rows, err := DB.QueryContext(
+		context.Background(),
+		`SELECT i.name FROM interests i
+		 JOIN userInterests ui ON i.id = ui.interestId
+		 WHERE ui.userId = $1`,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var interest string
+		if err := rows.Scan(&interest); err != nil {
+			return nil, err
+		}
+		bio.Interests = append(bio.Interests, interest)
+	}
+
+	return bio, nil
+}
+
+// UpdateBio updates biographical data for a user
+func UpdateBio(bio *models.Bio) error {
+	// Delete existing interests
+	_, err := DB.ExecContext(
+		context.Background(),
+		`DELETE FROM userInterests WHERE userId = $1`,
+		bio.UserID,
+	)
+	if err != nil {
+		return err
+	}
+
+	// Insert new interests
+	for _, interest := range bio.Interests {
+		// First, get or create the interest
+		var interestID int
+		err := DB.QueryRowContext(
+			context.Background(),
+			`SELECT id FROM interests WHERE name = $1`,
+			interest,
+		).Scan(&interestID)
+
+		if err == sql.ErrNoRows {
+			// Create the interest
+			err = DB.QueryRowContext(
+				context.Background(),
+				`INSERT INTO interests (name) VALUES ($1) RETURNING id`,
+				interest,
+			).Scan(&interestID)
+			if err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
+
+		// Insert user interest
+		_, err = DB.ExecContext(
+			context.Background(),
+			`INSERT INTO userInterests (userId, interestId) VALUES ($1, $2)`,
+			bio.UserID, interestID,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// CreatePhoto creates a new photo for a user
+func CreatePhoto(photo *models.Photo) error {
+	_, err := DB.ExecContext(
+		context.Background(),
+		`INSERT INTO photos (userId, photoUrl, order) VALUES ($1, $2, $3)`,
+		photo.UserID, photo.PhotoURL, 0,
+	)
+	return err
+}
+
+// GetUserPhotos retrieves all photos for a user
+func GetUserPhotos(userID int) ([]*models.Photo, error) {
+	rows, err := DB.QueryContext(
+		context.Background(),
+		`SELECT id, userId, photoUrl, order FROM photos WHERE userId = $1 ORDER BY order`,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var photos []*models.Photo
+	for rows.Next() {
+		photo := &models.Photo{}
+		if err := rows.Scan(&photo.ID, &photo.UserID, &photo.PhotoURL, &photo.Order); err != nil {
+			return nil, err
+		}
+		photos = append(photos, photo)
+	}
+
+	return photos, nil
+}
+
+// CreateInteraction creates an interaction between users
+func CreateInteraction(interaction *models.Interaction) error {
+	_, err := DB.ExecContext(
+		context.Background(),
+		`INSERT INTO interactions (userId, targetUserId, type, createdAt) VALUES ($1, $2, $3, $4)`,
+		interaction.UserID, interaction.TargetUserID, interaction.Type, time.Now(),
+	)
+	return err
+}
+
+// GetRecommendations gets recommended users for a user
+func GetRecommendations(userID int, limit int) ([]*models.User, error) {
+	rows, err := DB.QueryContext(
+		context.Background(),
+		`SELECT DISTINCT u.id, u.email, u.password, u.name, u.createdAt, u.updatedAt
+		 FROM users u
+		 WHERE u.id != $1
+		 AND u.id NOT IN (SELECT targetUserId FROM interactions WHERE userId = $1)
+		 LIMIT $2`,
+		userID, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*models.User
+	for rows.Next() {
+		user := &models.User{}
+		if err := rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Name, &user.CreatedAt, &user.UpdatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+
+	return users, nil
+}
+
+// CheckMutualLike checks if two users have liked each other
+func CheckMutualLike(userID1, userID2 int) (bool, error) {
+	var count int
+	err := DB.QueryRowContext(
+		context.Background(),
+		`SELECT COUNT(*) FROM interactions WHERE userId = $1 AND targetUserId = $2 AND type = 'like'
+		 AND EXISTS (SELECT 1 FROM interactions WHERE userId = $3 AND targetUserId = $4 AND type = 'like')`,
+		userID1, userID2, userID2, userID1,
+	).Scan(&count)
+
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
+// CreateMatch creates a match between two users
+func CreateMatch(match *models.Match) error {
+	_, err := DB.ExecContext(
+		context.Background(),
+		`INSERT INTO matches (userId1, userId2, createdAt) VALUES ($1, $2, NOW())`,
+		match.UserID1, match.UserID2,
+	)
+	return err
+}
+
+// GetConnections gets all connected users for a user
+func GetConnections(userID int) ([]*models.User, error) {
+	rows, err := DB.QueryContext(
+		context.Background(),
+		`SELECT DISTINCT u.id, u.email, u.password, u.name, u.createdAt, u.updatedAt
+		 FROM users u
+		 WHERE u.id IN (
+			SELECT CASE WHEN userId1 = $1 THEN userId2 ELSE userId1 END
+			FROM matches WHERE userId1 = $1 OR userId2 = $1
+		 )`,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*models.User
+	for rows.Next() {
+		user := &models.User{}
+		if err := rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Name, &user.CreatedAt, &user.UpdatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+
+	return users, nil
+}
+
+// CreateConnectionRequest creates a connection request
+func CreateConnectionRequest(req *models.ConnectionRequest) error {
+	_, err := DB.ExecContext(
+		context.Background(),
+		`INSERT INTO connectionRequests (fromUserId, toUserId, status, createdAt) VALUES ($1, $2, $3, NOW())`,
+		req.FromUserID, req.ToUserID, req.Status,
+	)
+	return err
+}
+
+// AcceptConnectionRequest accepts a connection request
+func AcceptConnectionRequest(fromUserID, toUserID int) error {
+	_, err := DB.ExecContext(
+		context.Background(),
+		`UPDATE connectionRequests SET status = 'accepted' WHERE fromUserId = $1 AND toUserId = $2`,
+		fromUserID, toUserID,
+	)
+	return err
+}
+
+// RejectConnectionRequest rejects a connection request
+func RejectConnectionRequest(fromUserID, toUserID int) error {
+	_, err := DB.ExecContext(
+		context.Background(),
+		`UPDATE connectionRequests SET status = 'rejected' WHERE fromUserId = $1 AND toUserId = $2`,
+		fromUserID, toUserID,
+	)
+	return err
+}
+
+// DeleteMatch deletes a match between two users
+func DeleteMatch(userID1, userID2 int) error {
+	_, err := DB.ExecContext(
+		context.Background(),
+		`DELETE FROM matches WHERE (userId1 = $1 AND userId2 = $2) OR (userId1 = $2 AND userId2 = $1)`,
+		userID1, userID2,
+	)
+	return err
+}
+
+// GetMatchByID retrieves a match by ID
+func GetMatchByID(matchID int) (*models.Match, error) {
+	match := &models.Match{}
+	err := DB.QueryRowContext(
+		context.Background(),
+		`SELECT id, userId1, userId2, createdAt FROM matches WHERE id = $1`,
+		matchID,
+	).Scan(&match.ID, &match.UserID1, &match.UserID2, &match.CreatedAt)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return match, nil
+}
+
+// GetMessagesForMatch retrieves messages for a match
+func GetMessagesForMatch(matchID, limit, offset int) ([]*models.Message, error) {
+	rows, err := DB.QueryContext(
+		context.Background(),
+		`SELECT id, matchId, senderId, content, createdAt
+		 FROM messages
+		 WHERE matchId = $1
+		 ORDER BY createdAt DESC
+		 LIMIT $2 OFFSET $3`,
+		matchID, limit, offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []*models.Message
+	for rows.Next() {
+		msg := &models.Message{}
+		if err := rows.Scan(&msg.ID, &msg.MatchID, &msg.SenderID, &msg.Content, &msg.CreatedAt); err != nil {
+			return nil, err
+		}
+		messages = append(messages, msg)
+	}
+
+	return messages, nil
+}
+
+// CreateMessage creates a new message
+func CreateMessage(matchID, senderID int, content string) (*models.Message, error) {
+	msg := &models.Message{
+		MatchID:   matchID,
+		SenderID:  senderID,
+		Content:   content,
+		CreatedAt: time.Now(),
+	}
+
+	err := DB.QueryRowContext(
+		context.Background(),
+		`INSERT INTO messages (matchId, senderId, content, createdAt)
+		 VALUES ($1, $2, $3, $4)
+		 RETURNING id`,
+		matchID, senderID, content, msg.CreatedAt,
+	).Scan(&msg.ID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return msg, nil
+}

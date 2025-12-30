@@ -1,0 +1,3 @@
+ALTER TABLE profiles
+ADD COLUMN IF NOT EXISTS allow_outside_radius BOOLEAN NOT NULL DEFAULT false;
+

@@ -1,0 +1,19 @@
+DROP TABLE IF EXISTS blocks;
+DROP TABLE IF EXISTS reports;
+DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS connection_requests;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS matches;
+DROP TABLE IF EXISTS interactions;
+DROP TABLE IF EXISTS photos;
+DROP TABLE IF EXISTS user_interests;
+DROP TABLE IF EXISTS interests;
+DROP TABLE IF EXISTS user_prompts;
+DROP TABLE IF EXISTS prompts;
+DROP TABLE IF EXISTS profiles;
+DROP TABLE IF EXISTS users;
+
+DROP TYPE IF EXISTS report_status;
+DROP TYPE IF EXISTS connection_status;
+DROP TYPE IF EXISTS interaction_type;
+DROP TYPE IF EXISTS role_enum;

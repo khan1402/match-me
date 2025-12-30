@@ -1,0 +1,165 @@
+package handlers
+
+import (
+	"net/http"
+
+	"backend/db"
+	"backend/socket"
+	"backend/utils"
+
+	socketio "github.com/googollee/go-socket.io"
+)
+
+// RegisterSocketIOHandlers wires all Socket.IO events
+func RegisterSocketIOHandlers(
+	server *socketio.Server,
+	manager *socket.Manager,
+) {
+
+	// ---- CONNECT ----
+	server.OnConnect("/", func(conn socketio.Conn) error {
+		// Socket.IO connection doesn't give *http.Request directly,
+		// so we read headers and construct a request just for cookie parsing.
+		headers := conn.RemoteHeader()
+		req := &http.Request{Header: headers}
+
+		c, err := req.Cookie("auth_token")
+		if err != nil {
+			return err // no cookie => reject connection
+		}
+
+		claims, err := utils.VerifyToken(c.Value)
+		if err != nil {
+			return err // invalid token => reject connection
+		}
+
+		// Match your HTTP auth middleware behavior (ensure user exists)
+		user, err := db.GetUserByID(claims.UserID)
+		if err != nil {
+			return err // user not found => reject connection
+		}
+
+		conn.SetContext(user.ID)
+		manager.Register(user.ID, conn)
+		return nil
+	})
+
+	// ---- DISCONNECT ----
+	server.OnDisconnect("/", func(conn socketio.Conn, reason string) {
+		uid, ok := conn.Context().(int)
+		if !ok {
+			return
+		}
+		manager.Unregister(uid, conn)
+	})
+
+	// ---- MESSAGE SEND ----
+	server.OnEvent("/", "message:send", func(conn socketio.Conn, payload map[string]interface{}) {
+		userID, ok := conn.Context().(int)
+		if !ok {
+			return
+		}
+
+		matchIDf, ok := payload["matchId"].(float64)
+		if !ok {
+			return
+		}
+		matchID := int(matchIDf)
+
+		content, ok := payload["content"].(string)
+		if !ok || content == "" {
+			return
+		}
+
+		// Validate match exists + sender belongs to it
+		match, err := db.GetMatchByID(matchID)
+		if err != nil {
+			return
+		}
+		if match.UserID1 != userID && match.UserID2 != userID {
+			return
+		}
+
+		// Determine receiver ID
+		var receiverID int
+		if match.UserID1 == userID {
+			receiverID = match.UserID2
+		} else {
+			receiverID = match.UserID1
+		}
+
+		// Create message
+		msg, err := db.CreateMessage(match.ID, userID, receiverID, content)
+		if err != nil {
+			return
+		}
+
+		// 1) Real-time message appears immediately for both users
+		manager.EmitToUsers(
+			[]int{match.UserID1, match.UserID2},
+			"message:new",
+			msg,
+		)
+
+		// 2) Unread badge update for receiver
+		if unread, err := db.GetUnreadMessageCount(match.ID, msg.ReceiverID); err == nil {
+			manager.EmitToUser(
+				msg.ReceiverID,
+				"chat:unread_update",
+				map[string]interface{}{
+					"matchId":     match.ID,
+					"unreadCount": unread,
+				},
+			)
+		}
+
+		// 3) Chat reorder for both users (most recent first)
+		manager.EmitToUsers(
+			[]int{match.UserID1, match.UserID2},
+			"chat:updated",
+			map[string]interface{}{
+				"matchId":       match.ID,
+				"lastMessage":   msg.Content,
+				"lastMessageAt": msg.CreatedAt,
+			},
+		)
+	})
+
+	// ---- TYPING INDICATOR ----
+	server.OnEvent("/", "typing", func(conn socketio.Conn, payload map[string]interface{}) {
+		userID, ok := conn.Context().(int)
+		if !ok {
+			return
+		}
+
+		matchIDf, ok := payload["matchId"].(float64)
+		if !ok {
+			return
+		}
+		matchID := int(matchIDf)
+
+		match, err := db.GetMatchByID(matchID)
+		if err != nil {
+			return
+		}
+
+		// Determine the other user in the match
+		var otherUser int
+		if match.UserID1 == userID {
+			otherUser = match.UserID2
+		} else if match.UserID2 == userID {
+			otherUser = match.UserID1
+		} else {
+			return
+		}
+
+		manager.EmitToUser(
+			otherUser,
+			"typing",
+			map[string]interface{}{
+				"matchId": match.ID,
+				"userId":  userID,
+			},
+		)
+	})
+}
