@@ -75,6 +75,8 @@ services:
 
   seed:
     image: golang:1.21-alpine
+    profiles:
+      - seed
     depends_on:
       postgres:
         condition: service_healthy

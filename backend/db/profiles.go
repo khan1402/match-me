@@ -289,60 +289,71 @@ func GetUserPrompts(userID int) ([]*models.UserPrompt, error) {
 
 // CanViewDetailedProfile checks if a user can view another user's detailed profile
 func CanViewDetailedProfile(viewerID, targetUserID int) (bool, error) {
-    if viewerID == targetUserID {
-        return true, nil
-    }
+	if viewerID == targetUserID {
+		return true, nil
+	}
 
-    // Allow if there is any interaction
-    var count int
-    err := DB.QueryRowContext(
-        context.Background(),
-        `SELECT COUNT(*)
-         FROM interactions
-         WHERE (user_id = $1 AND target_user_id = $2)
-            OR (user_id = $2 AND target_user_id = $1)`,
-        viewerID, targetUserID,
-    ).Scan(&count)
-
-    if err != nil && err != sql.ErrNoRows {
-        return false, err
-    }
-    if count > 0 {
-        return true, nil
-    }
-
-    // Allow if matched
-    var matchCount int
-    err = DB.QueryRowContext(
-        context.Background(),
-        `SELECT COUNT(*)
+	// Allow if matched/connected
+	var matchCount int
+	err := DB.QueryRowContext(
+		context.Background(),
+		`SELECT COUNT(*)
          FROM matches
          WHERE (user_id1 = $1 AND user_id2 = $2)
             OR (user_id1 = $2 AND user_id2 = $1)`,
-        viewerID, targetUserID,
-    ).Scan(&matchCount)
+		viewerID, targetUserID,
+	).Scan(&matchCount)
 
-    if err != nil && err != sql.ErrNoRows {
-        return false, err
-    }
-    if matchCount > 0 {
-        return true, nil
-    }
+	if err != nil && err != sql.ErrNoRows {
+		return false, err
+	}
+	if matchCount > 0 {
+		return true, nil
+	}
 
-    // ✅ Allow if target is in current recommendations (computed)
-    recs, err := GetRecommendations(viewerID)
-    if err != nil {
-        return false, err
-    }
-    for _, id := range recs {
-        if id == targetUserID {
-            return true, nil
-        }
-    }
+	// Allow if there is an outstanding connection request:
+	// - Viewer sent a "like" to target (outgoing request)
+	// - OR target sent a "like" to viewer and viewer hasn't responded (incoming request)
+	var hasOutstandingRequest bool
+	err = DB.QueryRowContext(
+		context.Background(),
+		`SELECT EXISTS(
+            SELECT 1 FROM interactions
+            WHERE (
+                -- Outgoing: viewer liked target
+                (user_id = $1 AND target_user_id = $2 AND type = 'like')
+                OR
+                -- Incoming: target liked viewer and viewer hasn't responded
+                (user_id = $2 AND target_user_id = $1 AND type = 'like'
+                 AND NOT EXISTS (
+                     SELECT 1 FROM interactions
+                     WHERE user_id = $1 AND target_user_id = $2
+                 ))
+            )
+        )`,
+		viewerID, targetUserID,
+	).Scan(&hasOutstandingRequest)
 
-    return false, nil
+	if err != nil && err != sql.ErrNoRows {
+		return false, err
+	}
+	if hasOutstandingRequest {
+		return true, nil
+	}
+
+	// Allow if target is in current recommendations (computed)
+	recs, err := GetRecommendations(viewerID)
+	if err != nil {
+		return false, err
+	}
+	for _, id := range recs {
+		if id == targetUserID {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
-
 
 // DeleteUserPhoto deletes a photo only if it belongs to this user.
 func DeleteUserPhoto(userID, photoID int) error {
