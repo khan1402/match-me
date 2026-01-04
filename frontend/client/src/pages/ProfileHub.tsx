@@ -100,7 +100,17 @@ export default function MyProfile() {
   });
 
   // Simple helper to pick a photo from different possible shapes
-  const pickUserPhoto = (obj: any): string | undefined => {
+  // ⚠️ CRITICAL: Only use photo if it belongs to the correct user
+  const pickUserPhoto = (obj: any, expectedUserId?: number): string | undefined => {
+    // If we have an expected userId, validate the object belongs to that user
+    if (expectedUserId !== undefined) {
+      const objUserId = obj?.otherUserId ?? obj?.profile?.id ?? obj?.id;
+      if (objUserId !== undefined && objUserId !== expectedUserId) {
+        console.warn(`[pickUserPhoto] ID mismatch: expected ${expectedUserId}, got ${objUserId}`);
+        return undefined; // Reject mismatched data
+      }
+    }
+    
     return (
       obj?.photoUrl ||
       obj?.profile?.profilePhotoUrl ||
@@ -315,7 +325,7 @@ export default function MyProfile() {
               <AvatarFallback>
                 {displayName
                   .split(" ")
-                  .map((p) => p[0])
+                  .map((p: string) => p[0])
                   .join("")
                   .slice(0, 2)
                   .toUpperCase()}
@@ -456,12 +466,27 @@ export default function MyProfile() {
                   ) : (
                     <div className="space-y-3">
                       {likes.map((item) => {
-                        const name = item.profile?.firstName || `User ${item.otherUserId}`;
-                        const photo = pickUserPhoto(item);
+                        // ✅ CRITICAL: Use otherUserId as the SINGLE source of truth
+                        const userId = item.otherUserId;
+                        const profileId = item.profile?.id;
+                        
+                        // ⚠️ REJECT any profile data that doesn't match the userId
+                        if (profileId !== undefined && profileId !== userId) {
+                          console.error(`[Likes] CRITICAL ID MISMATCH: otherUserId=${userId}, profile.id=${profileId} - REJECTING profile data`);
+                          // Don't use mismatched profile data - show fallback only
+                        }
+                        
+                        // ✅ STRICT: Only use profile data if the ID matches exactly
+                        const isValidProfile = item.profile && profileId === userId;
+                        const name = isValidProfile && item.profile
+                          ? (item.profile.firstName || `User ${userId}`)
+                          : `User ${userId}`;
+                        // ✅ CRITICAL: Pass userId to validate photo belongs to correct user
+                        const photo = pickUserPhoto(item, userId);
 
                         return (
                           <div
-                            key={item.otherUserId}
+                            key={userId}
                             className="flex items-center justify-between rounded-lg border bg-muted/40 px-3 py-2"
                           >
                             <div className="flex items-center gap-3">
@@ -476,8 +501,8 @@ export default function MyProfile() {
                               <div>
                                 <p className="font-medium">{name}</p>
                                 <p className="text-xs text-gray-500">
-                                  {item.profile?.age ? `${item.profile.age} · ` : ""}
-                                  {item.profile?.location || "No location yet"}
+                                  {isValidProfile && item.profile?.age ? `${item.profile.age} · ` : ""}
+                                  {isValidProfile && item.profile ? (item.profile.location || "No location yet") : "No location yet"}
                                 </p>
                               </div>
                             </div>
@@ -486,7 +511,11 @@ export default function MyProfile() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setLocation(`/profile/${item.otherUserId}`)}
+                                onClick={() => {
+                                  // ✅ FIX: Always use otherUserId for navigation, log for verification
+                                  console.log(`[Likes] Navigating to profile: userId=${userId}, profile.id=${profileId}`);
+                                  setLocation(`/profile/${userId}`);
+                                }}
                               >
                                 View profile
                               </Button>
@@ -516,8 +545,17 @@ export default function MyProfile() {
                   ) : (
                     <div className="space-y-3">
                       {matches.map((match) => {
-                        const name = match.profile?.firstName || `User ${match.otherUserId}`;
-                        const photo = pickUserPhoto(match);
+                        // ✅ CRITICAL: Validate profile ID matches otherUserId
+                        const userId = match.otherUserId;
+                        const profileId = match.profile?.id;
+                        if (profileId !== undefined && profileId !== userId) {
+                          console.error(`[Connections] CRITICAL ID MISMATCH: otherUserId=${userId}, profile.id=${profileId} - REJECTING profile data`);
+                        }
+                        const isValidProfile = match.profile && profileId === userId;
+                        const name = isValidProfile && match.profile
+                          ? (match.profile.firstName || `User ${userId}`)
+                          : `User ${userId}`;
+                        const photo = pickUserPhoto(match, userId);
 
                         return (
                           <div
@@ -614,9 +652,16 @@ export default function MyProfile() {
                           );
                         }
 
-                        const name =
-                          req.profile?.firstName || `User ${reqUserId}`;
-                        const photo = pickUserPhoto(req);
+                        // ✅ CRITICAL: Validate profile ID matches reqUserId
+                        const profileId = req.profile?.id;
+                        if (profileId !== undefined && profileId !== reqUserId) {
+                          console.error(`[Requests] CRITICAL ID MISMATCH: reqUserId=${reqUserId}, profile.id=${profileId} - REJECTING profile data`);
+                        }
+                        const isValidProfile = req.profile && profileId === reqUserId;
+                        const name = isValidProfile && req.profile
+                          ? (req.profile.firstName || `User ${reqUserId}`)
+                          : `User ${reqUserId}`;
+                        const photo = pickUserPhoto(req, reqUserId);
 
                         return (
                           <div
@@ -691,8 +736,17 @@ export default function MyProfile() {
                   ) : (
                     <div className="space-y-4">
                       {matches.map((match) => {
-                        const name = match.profile?.firstName || `User ${match.otherUserId}`;
-                        const photo = pickUserPhoto(match);
+                        // ✅ CRITICAL: Validate profile ID matches otherUserId
+                        const userId = match.otherUserId;
+                        const profileId = match.profile?.id;
+                        if (profileId !== undefined && profileId !== userId) {
+                          console.error(`[Chats] CRITICAL ID MISMATCH: otherUserId=${userId}, profile.id=${profileId} - REJECTING profile data`);
+                        }
+                        const isValidProfile = match.profile && profileId === userId;
+                        const name = isValidProfile && match.profile
+                          ? (match.profile.firstName || `User ${userId}`)
+                          : `User ${userId}`;
+                        const photo = pickUserPhoto(match, userId);
                         const lastMsg: any = match.lastMessage;
                         const unread = match.unreadCount || 0;
                         const online = match.online;

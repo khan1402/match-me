@@ -275,6 +275,16 @@ func GetMyProfile(c *gin.Context) {
 		AllowOutsideRadius: profile.AllowOutsideRadius,
 	}
 
+	// Include minAge/maxAge only if set
+	if profile.MinAge.Valid {
+		minAge := int(profile.MinAge.Int32)
+		resp.MinAge = &minAge
+	}
+	if profile.MaxAge.Valid {
+		maxAge := int(profile.MaxAge.Int32)
+		resp.MaxAge = &maxAge
+	}
+
 	c.JSON(http.StatusOK, resp)
 }
 

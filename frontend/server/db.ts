@@ -452,10 +452,12 @@ export async function getDiscoveryFeed(
       : []),
   ];
 
+  // ✅ STANDARDIZE: Join with users table to get users.name (not profiles.firstName)
   const query = db
     .select({
       userId: profiles.userId,
-      firstName: profiles.firstName,
+      name: users.name, // ✅ Always use users.name for consistency
+      firstName: profiles.firstName, // Keep for backward compatibility
       age: profiles.age,
       gender: profiles.gender,
       lookingFor: profiles.lookingFor,
@@ -467,6 +469,7 @@ export async function getDiscoveryFeed(
       longitude: profiles.longitude,
     })
     .from(profiles)
+    .innerJoin(users, eq(profiles.userId, users.id))
     .where(and(...baseConditions))
     .limit(50);
 
@@ -855,6 +858,21 @@ export async function getUsersILiked(userId: number) {
   const enriched = await Promise.all(
     uniqueUserIds.map(async (otherUserId) => {
       const profile = await getProfileByUserId(otherUserId);
+      
+      // ✅ CRITICAL: Validate profile.id matches otherUserId
+      if (profile && profile.userId !== otherUserId) {
+        console.error(`[getUsersILiked] CRITICAL ID MISMATCH: otherUserId=${otherUserId}, profile.userId=${profile.userId} - REJECTING profile`);
+        return {
+          otherUserId,
+          profile: null, // Reject mismatched profile
+        };
+      }
+      
+      // ✅ Ensure profile.id is set to otherUserId for consistency
+      if (profile) {
+        profile.id = otherUserId;
+      }
+      
       return {
         otherUserId,
         profile,
@@ -892,6 +910,22 @@ export async function getMyMatches(userId: number) {
       const otherUserId =
         match.user1Id === userId ? match.user2Id : match.user1Id;
       const profile = await getProfileByUserId(otherUserId);
+      
+      // ✅ CRITICAL: Validate profile.userId matches otherUserId
+      if (profile && profile.userId !== otherUserId) {
+        console.error(`[getMyMatches] CRITICAL ID MISMATCH: otherUserId=${otherUserId}, profile.userId=${profile.userId} - REJECTING profile`);
+        return {
+          id: match.id,
+          otherUserId,
+          matchedAt: match.matchedAt,
+          profile: null, // Reject mismatched profile
+        };
+      }
+      
+      // ✅ Ensure profile.id is set to otherUserId for consistency
+      if (profile) {
+        profile.id = otherUserId;
+      }
 
       return {
         id: match.id,
@@ -987,13 +1021,31 @@ export async function getIncomingConnectionRequests(userId: number) {
   const enriched = await Promise.all(
     uniqueRequestIds.map(async (fromId) => {
       const profile = await getProfileByUserId(fromId);
+      
+      // ✅ CRITICAL: Validate profile.userId matches fromId
+      if (profile && profile.userId !== fromId) {
+        console.error(`[getIncomingRequests] CRITICAL ID MISMATCH: fromId=${fromId}, profile.userId=${profile.userId} - REJECTING profile`);
+        return { fromUserId: fromId, profile: null, photoUrl: null };
+      }
+      
+      // ✅ Ensure profile.id is set to fromId for consistency
+      if (profile) {
+        profile.id = fromId;
+      }
+      
       // Get latest photo for avatar
       let photoUrl: string | null = null;
       try {
         const photos = await getUserPhotos(fromId);
         if (photos && photos.length > 0) {
           const lastPhoto = photos[photos.length - 1];
-          photoUrl = lastPhoto.photoUrl || null;
+          // ✅ CRITICAL: Validate photo belongs to correct user
+          if (lastPhoto.userId !== fromId) {
+            console.error(`[getIncomingRequests] CRITICAL ID MISMATCH: fromId=${fromId}, photo.userId=${lastPhoto.userId} - REJECTING photo`);
+            photoUrl = null;
+          } else {
+            photoUrl = lastPhoto.photoUrl || null;
+          }
         }
       } catch {
         // ignore

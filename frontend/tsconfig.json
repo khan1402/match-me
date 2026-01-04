@@ -10,6 +10,8 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
 
     // 🔑 THIS IS THE FIX
     "baseUrl": ".",

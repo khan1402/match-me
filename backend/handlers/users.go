@@ -4,9 +4,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
 	"backend/db"
 	"backend/models"
+
+	"github.com/gin-gonic/gin"
 )
 
 // GetUser returns user's name and profile picture
@@ -40,19 +41,20 @@ func GetUser(c *gin.Context) {
 
 	profile, err := db.GetProfileByUserID(userID)
 	if err != nil {
-    c.JSON(http.StatusNotFound, gin.H{"error": "Profile not found"})
-    return
+		c.JSON(http.StatusNotFound, gin.H{"error": "Profile not found"})
+		return
 	}
 
 	photos, err := db.GetUserPhotos(userID)
 	if err != nil {
-    photos = []*models.Photo{}
+		photos = []*models.Photo{}
 	}
 
+	// ✅ STANDARDIZE: Always use users.name (not profile.firstName) for consistency
+	// This ensures Discovery name == Likes name == View Profile name
+	// Note: profile is still needed for permission checks, but we don't use profile.FirstName for name
+	_ = profile // Acknowledge we're intentionally not using profile for name
 	name := targetUser.Name
-	if name == "" && profile != nil && profile.FirstName.Valid {
-		name = profile.FirstName.String
-	}
 	if name == "" {
 		name = "Anonymous"
 	}
@@ -171,13 +173,13 @@ func GetUserBio(c *gin.Context) {
 	}
 
 	resp := models.BioResponse{
-		ID:        userID,
-		Gender:    profile.Gender.String,
+		ID:         userID,
+		Gender:     profile.Gender.String,
 		LookingFor: profile.LookingFor.String,
-		Age:       int(profile.Age.Int32),
-		Location:  profile.Location.String,
-		Interests: interestNames,
-		Prompts:   promptPairs,
+		Age:        int(profile.Age.Int32),
+		Location:   profile.Location.String,
+		Interests:  interestNames,
+		Prompts:    promptPairs,
 	}
 
 	c.JSON(http.StatusOK, resp)
@@ -246,10 +248,8 @@ func GetUserDiscovery(c *gin.Context) {
 		})
 	}
 
+	// ✅ STANDARDIZE: Always use users.name (not profile.firstName) for consistency
 	name := targetUser.Name
-	if name == "" && profile.FirstName.Valid {
-		name = profile.FirstName.String
-	}
 	if name == "" {
 		name = "Anonymous"
 	}

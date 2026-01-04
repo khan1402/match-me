@@ -29,6 +29,8 @@ func UpdateCurrentUserProfile(c *gin.Context) {
 	var req struct {
 		FirstName         *string  `json:"firstName"`
 		Age               *int     `json:"age"`
+		MinAge            *int     `json:"minAge"`
+		MaxAge            *int     `json:"maxAge"`
 		Gender            *string  `json:"gender"`
 		LookingFor        *string  `json:"lookingFor"`
 		Location          *string  `json:"location"`
@@ -70,6 +72,24 @@ func UpdateCurrentUserProfile(c *gin.Context) {
 	}
 	if req.Age != nil {
 		profile.Age = toNullInt32(*req.Age)
+	}
+	if req.MinAge != nil {
+		// Frontend sends null or number. If number is > 0, set it; otherwise set to NULL
+		if *req.MinAge >= 18 {
+			profile.MinAge = sql.NullInt32{Int32: int32(*req.MinAge), Valid: true}
+		} else {
+			// 0, negative, or null from frontend means unset
+			profile.MinAge = sql.NullInt32{Valid: false}
+		}
+	}
+	if req.MaxAge != nil {
+		// Frontend sends null or number. If number is > 0, set it; otherwise set to NULL
+		if *req.MaxAge >= 18 {
+			profile.MaxAge = sql.NullInt32{Int32: int32(*req.MaxAge), Valid: true}
+		} else {
+			// 0, negative, or null from frontend means unset
+			profile.MaxAge = sql.NullInt32{Valid: false}
+		}
 	}
 	if req.Gender != nil {
 		profile.Gender = toNullString(*req.Gender)

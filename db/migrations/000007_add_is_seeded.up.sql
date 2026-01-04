@@ -1,0 +1,2 @@
+ALTER TABLE users ADD COLUMN is_seeded BOOLEAN NOT NULL DEFAULT false;
+

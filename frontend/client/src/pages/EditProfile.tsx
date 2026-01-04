@@ -54,6 +54,8 @@ export default function EditProfile() {
   const [formData, setFormData] = useState({
     firstName: "",
     age: "",
+    minAge: "",
+    maxAge: "",
     gender: "",
     lookingFor: "",
     city: "",
@@ -180,6 +182,8 @@ export default function EditProfile() {
       setFormData({
         firstName: data.firstName || "",
         age: data.age?.toString() || "",
+        minAge: data.minAge?.toString() || "",
+        maxAge: data.maxAge?.toString() || "",
         gender: data.gender || "",
         lookingFor: data.lookingFor || "",
         city,
@@ -259,12 +263,24 @@ export default function EditProfile() {
       return;
     }
 
+    // Validate age range if both provided
+    if (formData.minAge && formData.maxAge) {
+      const min = parseInt(formData.minAge, 10);
+      const max = parseInt(formData.maxAge, 10);
+      if (min > max) {
+        toast.error("Min age must be less than or equal to max age");
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
       await api.profile.updateProfile({
         firstName: formData.firstName,
         age: parseInt(formData.age, 10),
+        minAge: formData.minAge ? parseInt(formData.minAge, 10) : null,
+        maxAge: formData.maxAge ? parseInt(formData.maxAge, 10) : null,
         gender: formData.gender,
         lookingFor: formData.lookingFor,
         location: buildLocationString(),
@@ -450,6 +466,38 @@ export default function EditProfile() {
                 }
                 required
               />
+            </div>
+
+            {/* Optional age range preferences */}
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="minAge">Min Preferred Age (Optional)</Label>
+                <Input
+                  id="minAge"
+                  type="number"
+                  min={18}
+                  max={99}
+                  value={formData.minAge}
+                  onChange={(e) =>
+                    setFormData({ ...formData, minAge: e.target.value })
+                  }
+                  placeholder="e.g. 25"
+                />
+              </div>
+              <div>
+                <Label htmlFor="maxAge">Max Preferred Age (Optional)</Label>
+                <Input
+                  id="maxAge"
+                  type="number"
+                  min={18}
+                  max={99}
+                  value={formData.maxAge}
+                  onChange={(e) =>
+                    setFormData({ ...formData, maxAge: e.target.value })
+                  }
+                  placeholder="e.g. 35"
+                />
+              </div>
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">

@@ -7,37 +7,39 @@ import (
 
 // User represents a user account
 type User struct {
-	ID          int       `db:"id" json:"id"`
-	Email       string    `db:"email" json:"email"`
-	Password    string    `db:"password" json:"-"`
-	Name        string    `db:"name" json:"name"`
-	Role        string    `db:"role" json:"role"`
-	CreatedAt   time.Time `db:"createdAt" json:"createdAt"`
-	UpdatedAt   time.Time `db:"updatedAt" json:"updatedAt"`
+	ID           int       `db:"id" json:"id"`
+	Email        string    `db:"email" json:"email"`
+	Password     string    `db:"password" json:"-"`
+	Name         string    `db:"name" json:"name"`
+	Role         string    `db:"role" json:"role"`
+	CreatedAt    time.Time `db:"createdAt" json:"createdAt"`
+	UpdatedAt    time.Time `db:"updatedAt" json:"updatedAt"`
 	LastSignedIn time.Time `db:"lastSignedIn" json:"lastSignedIn"`
 }
 
 // Profile represents user profile information
 type Profile struct {
-	ID                int            `db:"id" json:"id"`
-	UserID            int            `db:"userId" json:"userId"`
-	Username          sql.NullString `db:"username" json:"username"`
-	FirstName         sql.NullString `db:"firstName" json:"firstName"`
-	LastName          sql.NullString `db:"lastName" json:"lastName"`
-	Age               sql.NullInt32  `db:"age" json:"age"`
-	Gender            sql.NullString `db:"gender" json:"gender"`
-	LookingFor        sql.NullString `db:"lookingFor" json:"lookingFor"`
-	Bio               sql.NullString `db:"bio" json:"bio"`
-	Location          sql.NullString `db:"location" json:"location"`
-	Latitude          sql.NullFloat64 `db:"latitude" json:"latitude"`
-	Longitude         sql.NullFloat64 `db:"longitude" json:"longitude"`
-	MaxDistanceKm     int            `db:"maxDistanceKm" json:"maxDistanceKm"`
-	AllowOutsideRadius bool           `db:"allowOutsideRadius" json:"allowOutsideRadius"`
-	ProfilePhotoUrl   sql.NullString `db:"profilePhotoUrl" json:"profilePhotoUrl"`
-	IsProfileComplete bool           `db:"isProfileComplete" json:"isProfileComplete"`
-	IsVerified        bool           `db:"isVerified" json:"isVerified"`
-	CreatedAt         time.Time      `db:"createdAt" json:"createdAt"`
-	UpdatedAt         time.Time      `db:"updatedAt" json:"updatedAt"`
+	ID                 int             `db:"id" json:"id"`
+	UserID             int             `db:"userId" json:"userId"`
+	Username           sql.NullString  `db:"username" json:"username"`
+	FirstName          sql.NullString  `db:"firstName" json:"firstName"`
+	LastName           sql.NullString  `db:"lastName" json:"lastName"`
+	Age                sql.NullInt32   `db:"age" json:"age"`
+	MinAge             sql.NullInt32   `db:"min_age" json:"minAge,omitempty"`
+	MaxAge             sql.NullInt32   `db:"max_age" json:"maxAge,omitempty"`
+	Gender             sql.NullString  `db:"gender" json:"gender"`
+	LookingFor         sql.NullString  `db:"lookingFor" json:"lookingFor"`
+	Bio                sql.NullString  `db:"bio" json:"bio"`
+	Location           sql.NullString  `db:"location" json:"location"`
+	Latitude           sql.NullFloat64 `db:"latitude" json:"latitude"`
+	Longitude          sql.NullFloat64 `db:"longitude" json:"longitude"`
+	MaxDistanceKm      int             `db:"maxDistanceKm" json:"maxDistanceKm"`
+	AllowOutsideRadius bool            `db:"allowOutsideRadius" json:"allowOutsideRadius"`
+	ProfilePhotoUrl    sql.NullString  `db:"profilePhotoUrl" json:"profilePhotoUrl"`
+	IsProfileComplete  bool            `db:"isProfileComplete" json:"isProfileComplete"`
+	IsVerified         bool            `db:"isVerified" json:"isVerified"`
+	CreatedAt          time.Time       `db:"createdAt" json:"createdAt"`
+	UpdatedAt          time.Time       `db:"updatedAt" json:"updatedAt"`
 }
 
 // Prompt represents a predefined prompt question
@@ -77,18 +79,18 @@ type PromptAnswerInput struct {
 
 // UserInterest represents a user's selected interest
 type UserInterest struct {
-	ID         int `db:"id" json:"id"`
-	UserID     int `db:"userId" json:"userId"`
-	InterestID int `db:"interestId" json:"interestId"`
+	ID           int    `db:"id" json:"id"`
+	UserID       int    `db:"userId" json:"userId"`
+	InterestID   int    `db:"interestId" json:"interestId"`
 	InterestName string `db:"-" json:"interestName,omitempty"`
 }
 
 // Photo represents a user's photo
 type Photo struct {
-	ID       int       `db:"id" json:"id"`
-	UserID   int       `db:"userId" json:"userId"`
-	PhotoUrl string    `db:"photoUrl" json:"photoUrl"`
-	Order    int       `db:"order" json:"order"`
+	ID        int       `db:"id" json:"id"`
+	UserID    int       `db:"userId" json:"userId"`
+	PhotoUrl  string    `db:"photoUrl" json:"photoUrl"`
+	Order     int       `db:"order" json:"order"`
 	CreatedAt time.Time `db:"createdAt" json:"createdAt"`
 }
 
@@ -122,14 +124,14 @@ type Message struct {
 
 // Notification represents a notification
 type Notification struct {
-	ID            int       `db:"id" json:"id"`
-	UserID        int       `db:"user_id" json:"userId"`
-	Type          string    `db:"type" json:"type"`
-	RelatedUserID *int      `db:"related_user_id" json:"relatedUserId"`
-	RelatedMatchID *int     `db:"related_match_id" json:"relatedMatchId"`
-	Content       string    `db:"message" json:"content"` // DB column is "message", JSON field is "content"
-	IsRead        bool      `db:"is_read" json:"isRead"`
-	CreatedAt     time.Time `db:"created_at" json:"createdAt"`
+	ID             int       `db:"id" json:"id"`
+	UserID         int       `db:"user_id" json:"userId"`
+	Type           string    `db:"type" json:"type"`
+	RelatedUserID  *int      `db:"related_user_id" json:"relatedUserId"`
+	RelatedMatchID *int      `db:"related_match_id" json:"relatedMatchId"`
+	Content        string    `db:"message" json:"content"` // DB column is "message", JSON field is "content"
+	IsRead         bool      `db:"is_read" json:"isRead"`
+	CreatedAt      time.Time `db:"created_at" json:"createdAt"`
 }
 
 // Block represents a user blocking another user
@@ -142,12 +144,12 @@ type Block struct {
 
 // Report represents a user report
 type Report struct {
-	ID        int       `db:"id" json:"id"`
-	UserID    int       `db:"userId" json:"userId"`
-	ReportedID int      `db:"reportedId" json:"reportedId"`
-	Reason    string    `db:"reason" json:"reason"`
-	Status    string    `db:"status" json:"status"`
-	CreatedAt time.Time `db:"createdAt" json:"createdAt"`
+	ID         int       `db:"id" json:"id"`
+	UserID     int       `db:"userId" json:"userId"`
+	ReportedID int       `db:"reportedId" json:"reportedId"`
+	Reason     string    `db:"reason" json:"reason"`
+	Status     string    `db:"status" json:"status"`
+	CreatedAt  time.Time `db:"createdAt" json:"createdAt"`
 }
 
 // JWT Claims
@@ -164,29 +166,31 @@ type UserResponse struct {
 }
 
 type ProfileResponse struct {
-	ID                int     `json:"id"`
-	FirstName         string  `json:"firstName"`
-	Age               int     `json:"age"`
-	Location          string  `json:"location"`
-	Bio               string  `json:"bio"`
-	IsVerified        bool    `json:"isVerified"`
-	ProfilePhotoUrl   string  `json:"profilePhotoUrl"`
-	Gender            string  `json:"gender"`
-	LookingFor        string  `json:"lookingFor"`
-	Latitude          float64 `json:"latitude"`
-	Longitude         float64 `json:"longitude"`
-	MaxDistanceKm     int     `json:"maxDistanceKm"`
-	AllowOutsideRadius bool   `json:"allowOutsideRadius"`
+	ID                 int     `json:"id"`
+	FirstName          string  `json:"firstName"`
+	Age                int     `json:"age"`
+	MinAge             *int    `json:"minAge,omitempty"`
+	MaxAge             *int    `json:"maxAge,omitempty"`
+	Location           string  `json:"location"`
+	Bio                string  `json:"bio"`
+	IsVerified         bool    `json:"isVerified"`
+	ProfilePhotoUrl    string  `json:"profilePhotoUrl"`
+	Gender             string  `json:"gender"`
+	LookingFor         string  `json:"lookingFor"`
+	Latitude           float64 `json:"latitude"`
+	Longitude          float64 `json:"longitude"`
+	MaxDistanceKm      int     `json:"maxDistanceKm"`
+	AllowOutsideRadius bool    `json:"allowOutsideRadius"`
 }
 
 type BioResponse struct {
-	ID        int                 `json:"id"`
-	Gender    string              `json:"gender"`
+	ID         int                `json:"id"`
+	Gender     string             `json:"gender"`
 	LookingFor string             `json:"lookingFor"`
-	Age       int                 `json:"age"`
-	Location  string              `json:"location"`
-	Interests []string            `json:"interests"`
-	Prompts   []PromptAnswerPair  `json:"prompts"`
+	Age        int                `json:"age"`
+	Location   string             `json:"location"`
+	Interests  []string           `json:"interests"`
+	Prompts    []PromptAnswerPair `json:"prompts"`
 }
 
 type PromptAnswerPair struct {
@@ -195,20 +199,20 @@ type PromptAnswerPair struct {
 }
 
 type DiscoveryResponse struct {
-	ID        int                 `json:"id"`
-	Gender    string              `json:"gender"`
-	LookingFor string             `json:"lookingFor"`
-	Age       int                 `json:"age"`
-	Location  string              `json:"location"`
-	Interests []string            `json:"interests"`
-	Prompts   []PromptAnswerPair  `json:"prompts"`
-	Name      string              `json:"name"`
-	ProfilePicture string         `json:"profilePicture"`
+	ID             int                `json:"id"`
+	Gender         string             `json:"gender"`
+	LookingFor     string             `json:"lookingFor"`
+	Age            int                `json:"age"`
+	Location       string             `json:"location"`
+	Interests      []string           `json:"interests"`
+	Prompts        []PromptAnswerPair `json:"prompts"`
+	Name           string             `json:"name"`
+	ProfilePicture string             `json:"profilePicture"`
 }
 
 type RecommendationResponse struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+	ID             int    `json:"id"`
+	Name           string `json:"name"`
 	ProfilePicture string `json:"profilePicture"`
 }
 

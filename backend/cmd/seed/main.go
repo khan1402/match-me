@@ -319,11 +319,14 @@ func seedPromptsAndInterests(db *sql.DB) {
 	log.Println("Prompts and interests seeded successfully")
 }
 
-// updateAllUserLocations updates all existing users to have European/Finland locations
+// updateAllUserLocations updates only seeded users to have European/Finland locations
 func updateAllUserLocations(db *sql.DB) {
-	log.Println("Updating all existing users' locations to European distribution...")
+	log.Println("Updating seeded users' locations to European distribution...")
 
-	rows, err := db.QueryContext(context.Background(), `SELECT user_id FROM profiles`)
+	rows, err := db.QueryContext(context.Background(),
+		`SELECT p.user_id FROM profiles p 
+		 INNER JOIN users u ON p.user_id = u.id 
+		 WHERE u.is_seeded = true`)
 	if err != nil {
 		log.Printf("Error querying profiles: %v", err)
 		return
@@ -355,7 +358,8 @@ func updateAllUserLocations(db *sql.DB) {
 		longitude := city.longitude + (rand.Float64()-0.5)*0.1
 
 		_, err = db.ExecContext(context.Background(),
-			`UPDATE profiles SET location = $1, latitude = $2, longitude = $3 WHERE user_id = $4`,
+			`UPDATE profiles SET location = $1, latitude = $2, longitude = $3 
+			 WHERE user_id = $4 AND EXISTS (SELECT 1 FROM users WHERE id = $4 AND is_seeded = true)`,
 			location, latitude, longitude, userID)
 		if err != nil {
 			log.Printf("Error updating location for user %d: %v", userID, err)
@@ -364,7 +368,7 @@ func updateAllUserLocations(db *sql.DB) {
 		updatedCount++
 	}
 
-	log.Printf("Updated locations for %d existing users", updatedCount)
+	log.Printf("Updated locations for %d seeded users", updatedCount)
 }
 
 func seedUsers(db *sql.DB, count int) {
@@ -393,10 +397,10 @@ func seedUsers(db *sql.DB, count int) {
 
 			err = db.QueryRowContext(
 				context.Background(),
-				`INSERT INTO users (email, password, name)
-				 VALUES ($1, $2, $3)
+				`INSERT INTO users (email, password, name, is_seeded)
+				 VALUES ($1, $2, $3, $4)
 				 RETURNING id`,
-				email, string(hashedPassword), name,
+				email, string(hashedPassword), name, true,
 			).Scan(&userID)
 
 			if err != nil {
@@ -407,7 +411,15 @@ func seedUsers(db *sql.DB, count int) {
 			log.Printf("Error checking user %d: %v", i, err)
 			continue
 		} else {
-			// User exists, check if they have photos and prompts
+			// User exists, check if they are seeded
+			var isSeeded bool
+			err = db.QueryRowContext(context.Background(), `SELECT is_seeded FROM users WHERE id = $1`, userID).Scan(&isSeeded)
+			if err != nil || !isSeeded {
+				// User exists but is not seeded, skip
+				continue
+			}
+
+			// Check if they have photos and prompts
 			var photoCount int
 			var promptCount int
 			db.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM photos WHERE user_id = $1`, userID).Scan(&photoCount)
@@ -455,11 +467,12 @@ func seedUsers(db *sql.DB, count int) {
 			maxDistance := rand.Intn(100) + 10
 
 			// Generate profile photo URL (using randomuser.me or picsum)
+			// ✅ CRITICAL FIX: Use userID, not loop index i, to ensure profile photo matches the correct user
 			genderFolder := "men"
 			if gender == "female" {
 				genderFolder = "women"
 			}
-			portraitIndex := (i % 99) + 1
+			portraitIndex := (userID % 99) + 1
 			profilePhotoUrl := fmt.Sprintf("https://randomuser.me/api/portraits/%s/%d.jpg", genderFolder, portraitIndex)
 
 			_, err = db.ExecContext(
@@ -489,48 +502,49 @@ func seedUsers(db *sql.DB, count int) {
 				if gender == "female" {
 					genderFolder = "women"
 				}
-				portraitIndex := (i % 99) + 1
+				// ✅ CRITICAL FIX: Use userID, not loop index i, to ensure profile photo matches the correct user
+				portraitIndex := (userID % 99) + 1
 				profilePhotoUrl := fmt.Sprintf("https://randomuser.me/api/portraits/%s/%d.jpg", genderFolder, portraitIndex)
 				db.ExecContext(context.Background(), `UPDATE profiles SET profile_photo_url = $1 WHERE user_id = $2`, profilePhotoUrl, userID)
 			}
-
-			// Always update location to new distribution (70% Finland, 30% Europe)
-			// This ensures all existing users get updated to European locations
-			var city struct {
-				name      string
-				country   string
-				latitude  float64
-				longitude float64
-			}
-			if rand.Float64() < 0.7 {
-				city = finlandCities[rand.Intn(len(finlandCities))]
-			} else {
-				city = europeanCities[rand.Intn(len(europeanCities))]
-			}
-			location := fmt.Sprintf("%s, %s", city.name, city.country)
-			// Add small random offset to coordinates for variety
-			latitude := city.latitude + (rand.Float64()-0.5)*0.1
-			longitude := city.longitude + (rand.Float64()-0.5)*0.1
-			db.ExecContext(context.Background(),
-				`UPDATE profiles SET location = $1, latitude = $2, longitude = $3 WHERE user_id = $4`,
-				location, latitude, longitude, userID)
 		}
 
-		// Add photos (2-4 photos per user) - only if they don't have photos
+		// Add photos - only if they don't have photos
 		var photoCount int
 		db.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM photos WHERE user_id = $1`, userID).Scan(&photoCount)
 
 		if photoCount == 0 {
-			numPhotos := rand.Intn(3) + 2 // 2-4 photos
-			for j := 0; j < numPhotos; j++ {
-				photoUrl := fmt.Sprintf("https://picsum.photos/seed/user%d-photo%d/600/600", i, j)
+			// ✅ CRITICAL: First photo MUST be a portrait (primary photo) for deterministic selection
+			// Get the profile_photo_url (portrait) that was set earlier
+			var profilePhotoUrl string
+			db.QueryRowContext(context.Background(), `SELECT profile_photo_url FROM profiles WHERE user_id = $1`, userID).Scan(&profilePhotoUrl)
+
+			if profilePhotoUrl != "" {
+				// Insert portrait as primary photo (sort_order=0) - this ensures ORDER BY sort_order ASC picks portrait first
+				_, err = db.ExecContext(
+					context.Background(),
+					`INSERT INTO photos (user_id, photo_url, sort_order) VALUES ($1, $2, 0)`,
+					userID, profilePhotoUrl,
+				)
+				if err != nil {
+					log.Printf("Error adding primary portrait photo for user %d (userID=%d): %v", i, userID, err)
+				} else {
+					log.Printf("✅ Added primary portrait photo (sort_order=0) for user %d: %s", userID, profilePhotoUrl)
+				}
+			}
+
+			// Add additional landscape photos (sort_order 1, 2, 3...) - these come after portrait
+			numExtraPhotos := rand.Intn(3) + 1 // 1-3 additional photos
+			for j := 1; j <= numExtraPhotos; j++ {
+				// ✅ Use userID, not loop index i, to ensure photos match the correct user
+				photoUrl := fmt.Sprintf("https://picsum.photos/seed/user%d-photo%d/600/600", userID, j)
 				_, err = db.ExecContext(
 					context.Background(),
 					`INSERT INTO photos (user_id, photo_url, sort_order) VALUES ($1, $2, $3)`,
 					userID, photoUrl, j,
 				)
 				if err != nil {
-					log.Printf("Error adding photo for user %d: %v", i, err)
+					log.Printf("Error adding landscape photo for user %d (userID=%d): %v", i, userID, err)
 				}
 			}
 		}

@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
-	
 )
 
 type MiniProfile struct {
@@ -82,14 +82,23 @@ LIMIT 1
 func GetMyLikes(userID int) ([]LikeItem, error) {
 	q := `
 SELECT
-	u.id,
-	COALESCE(NULLIF(p.first_name, ''), u.name) AS first_name,
+	u.id AS other_user_id,
+	u.name AS user_name,
+	p.user_id AS profile_user_id,
+	p.first_name AS profile_first_name,
 	COALESCE(p.age, 0) AS age,
 	COALESCE(p.location, '') AS location,
-	COALESCE(p.profile_photo_url, '') AS photo_url
+	ph.user_id AS photo_user_id,
+	COALESCE(ph.photo_url, p.profile_photo_url, '') AS photo_url
 FROM interactions i
 JOIN users u ON u.id = i.target_user_id
 LEFT JOIN profiles p ON p.user_id = u.id
+LEFT JOIN LATERAL (
+	SELECT user_id, photo_url FROM photos 
+	WHERE user_id = u.id 
+	ORDER BY sort_order ASC, created_at ASC 
+	LIMIT 1
+) ph ON TRUE
 WHERE i.user_id = $1
   AND i.type = 'like'
   AND NOT EXISTS (
@@ -109,19 +118,40 @@ ORDER BY i.created_at DESC
 	var out []LikeItem
 	for rows.Next() {
 		var (
-			otherID   int
-			firstName string
-			age       int
-			location  string
-			photoUrl  string
+			otherID          int
+			userName         sql.NullString
+			profileUserID    sql.NullInt64
+			profileFirstName sql.NullString
+			age              int
+			location         string
+			photoUserID      sql.NullInt64
+			photoUrl         string
 		)
 
-		if err := rows.Scan(&otherID, &firstName, &age, &location, &photoUrl); err != nil {
+		if err := rows.Scan(&otherID, &userName, &profileUserID, &profileFirstName, &age, &location, &photoUserID, &photoUrl); err != nil {
 			return nil, err
 		}
 
+		// ✅ CRITICAL: Validate all IDs match otherID
+		if profileUserID.Valid && int(profileUserID.Int64) != otherID {
+			log.Printf("[GetMyLikes] ID MISMATCH: otherID=%d, profile.user_id=%d - REJECTING", otherID, profileUserID.Int64)
+		}
+		if photoUserID.Valid && int(photoUserID.Int64) != otherID {
+			log.Printf("[GetMyLikes] ID MISMATCH: otherID=%d, photo.user_id=%d - REJECTING", otherID, photoUserID.Int64)
+		}
+
+		// ✅ TEMPORARY LOGGING: Print all IDs for debugging
+		log.Printf("[GetMyLikes] otherID=%d, users.id=%d, users.name='%s', profile.user_id=%v, profile.first_name='%v', photo.user_id=%v, photo_url='%s'",
+			otherID, otherID, userName.String, profileUserID, profileFirstName, photoUserID, photoUrl)
+
+		// ✅ STANDARDIZE: Always use users.name (not profile.first_name) for consistency
+		firstName := userName.String
+		if firstName == "" {
+			firstName = fmt.Sprintf("User %d", otherID)
+		}
+
 		// Convert to pointers to match the TS type "optional"
-		fn := firstName // always non-empty because of COALESCE
+		fn := firstName
 		var agePtr *int
 		if age > 0 {
 			a := age
@@ -135,7 +165,8 @@ ORDER BY i.created_at DESC
 		}
 
 		var photoPtr *string
-		if photoUrl != "" {
+		// ✅ Only use photo if it belongs to the correct user
+		if photoUrl != "" && (!photoUserID.Valid || int(photoUserID.Int64) == otherID) {
 			p := photoUrl
 			photoPtr = &p
 		}
@@ -170,7 +201,14 @@ SELECT
 	COALESCE(NULLIF(p.first_name, ''), u.name) AS first_name,
 	COALESCE(p.age, 0) AS age,
 	COALESCE(p.location, '') AS location,
-	COALESCE(p.profile_photo_url, '') AS photo_url
+	COALESCE(
+		(SELECT photo_url FROM photos 
+		 WHERE user_id = u.id 
+		 ORDER BY sort_order ASC, created_at ASC 
+		 LIMIT 1),
+		p.profile_photo_url,
+		''
+	) AS photo_url
 FROM interactions i
 JOIN users u ON u.id = i.user_id
 LEFT JOIN profiles p ON p.user_id = u.id
@@ -275,7 +313,14 @@ SELECT
   COALESCE(NULLIF(other_p.first_name, ''), other_u.name) AS first_name,
   COALESCE(other_p.age, 0) AS age,
   COALESCE(other_p.location, '') AS location,
-  COALESCE(other_p.profile_photo_url, '') AS photo_url,
+  COALESCE(
+    (SELECT photo_url FROM photos 
+     WHERE user_id = other_u.id 
+     ORDER BY sort_order ASC, created_at ASC 
+     LIMIT 1),
+    other_p.profile_photo_url,
+    ''
+  ) AS photo_url,
 
   lm.id AS last_message_id,
   lm.match_id AS last_message_match_id,
@@ -323,14 +368,14 @@ ORDER BY COALESCE(lm.created_at, m.created_at) DESC
 
 	for rows.Next() {
 		var (
-			matchID   int
-			matchedAt time.Time
-			otherID   int
+			matchID           int
+			matchedAt         time.Time
+			otherID           int
 			otherLastSignedIn sql.NullTime
-			firstName string
-			age       int
-			location  string
-			photoUrl  string
+			firstName         string
+			age               int
+			location          string
+			photoUrl          string
 
 			lmID         sql.NullInt64
 			lmMatchID    sql.NullInt64
@@ -427,20 +472,20 @@ ORDER BY COALESCE(lm.created_at, m.created_at) DESC
 }
 
 func DeleteMatch(matchID, userID int) error {
-    res, err := DB.Exec(`
+	res, err := DB.Exec(`
         DELETE FROM matches
         WHERE id = $1
           AND (user_id1 = $2 OR user_id2 = $2)
     `, matchID, userID)
 
-    if err != nil {
-        return err
-    }
+	if err != nil {
+		return err
+	}
 
-    rows, _ := res.RowsAffected()
-    if rows == 0 {
-        return ErrNotFound
-    }
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return ErrNotFound
+	}
 
-    return nil
+	return nil
 }

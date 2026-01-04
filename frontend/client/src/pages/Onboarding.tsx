@@ -82,6 +82,8 @@ export default function Onboarding() {
   const [formData, setFormData] = useState({
     firstName: "",
     age: "",
+    minAge: "",
+    maxAge: "",
     gender: "",
     lookingFor: "",
     city: "",
@@ -316,9 +318,21 @@ const handleSubmit = async (e: React.FormEvent) => {
   try {
     // 1) Save main profile (only in normal onboarding, not in manage-prompts mode)
     if (!managePromptsOnly) {
+      // Validate age range if both provided
+      if (formData.minAge && formData.maxAge) {
+        const min = parseInt(formData.minAge, 10);
+        const max = parseInt(formData.maxAge, 10);
+        if (min > max) {
+          toast.error("Min age must be less than or equal to max age");
+          return;
+        }
+      }
+
       await api.profile.updateProfile({
         firstName: formData.firstName,
         age: formData.age ? parseInt(formData.age, 10) : null,
+        minAge: formData.minAge ? parseInt(formData.minAge, 10) : null,
+        maxAge: formData.maxAge ? parseInt(formData.maxAge, 10) : null,
         gender: formData.gender || null,
         lookingFor: formData.lookingFor || null,
         location: buildLocationString(),
@@ -500,6 +514,38 @@ const handleSubmit = async (e: React.FormEvent) => {
                       setFormData({ ...formData, age: e.target.value })
                     }
                     required
+                  />
+                </div>
+              </div>
+
+              {/* Optional age range preferences */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="minAge">Min Preferred Age (Optional)</Label>
+                  <Input
+                    id="minAge"
+                    type="number"
+                    min={18}
+                    max={99}
+                    value={formData.minAge}
+                    onChange={(e) =>
+                      setFormData({ ...formData, minAge: e.target.value })
+                    }
+                    placeholder="e.g. 25"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="maxAge">Max Preferred Age (Optional)</Label>
+                  <Input
+                    id="maxAge"
+                    type="number"
+                    min={18}
+                    max={99}
+                    value={formData.maxAge}
+                    onChange={(e) =>
+                      setFormData({ ...formData, maxAge: e.target.value })
+                    }
+                    placeholder="e.g. 35"
                   />
                 </div>
               </div>

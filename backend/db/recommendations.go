@@ -102,39 +102,10 @@ func GetRecommendations(userID int) ([]int, error) {
 		}
 	}
 
-	// Phase 5: Location preference - prioritize same location
-	sameLocationScores := []RecommendationScore{}
-	otherLocationScores := []RecommendationScore{}
-
-	userLocation := ""
-	if userProfile.Location.Valid {
-		userLocation = userProfile.Location.String
-	}
-
-	for _, s := range scores {
-		candidateProfile, err := GetProfileByUserID(s.UserID)
-		if err != nil {
-			continue
-		}
-
-		candidateLocation := ""
-		if candidateProfile.Location.Valid {
-			candidateLocation = candidateProfile.Location.String
-		}
-
-		if userLocation != "" && candidateLocation != "" && candidateLocation == userLocation {
-			sameLocationScores = append(sameLocationScores, s)
-		} else {
-			otherLocationScores = append(otherLocationScores, s)
-		}
-	}
-
-	// Sort by score (highest first)
-	sortByScore(sameLocationScores)
-	sortByScore(otherLocationScores)
-
-	// Combine: same location first, then others
-	finalScores := append(sameLocationScores, otherLocationScores...)
+	// Phase 5: Sort by score (highest first) - GPS distance already factored into score
+	// No need to separate by location strings since GPS distance dominates scoring
+	sortByScore(scores)
+	finalScores := scores
 
 	// Phase 6: Limit to 10 recommendations
 	result := []int{}
@@ -204,6 +175,11 @@ func getHardFilteredCandidates(userID int, userProfile *models.Profile) ([]int, 
 			continue
 		}
 
+		// Optional age range preference filtering (hard filter)
+		if !checkOptionalMutualAgePreference(userProfile, candidateProfile) {
+			continue
+		}
+
 		// Location-based filtering: if allow_outside_radius is false, enforce strict filtering
 		if !userProfile.AllowOutsideRadius {
 			userHasValidCoords := isValidCoordinate(userProfile.Latitude, userProfile.Longitude)
@@ -246,6 +222,70 @@ func getHardFilteredCandidates(userID int, userProfile *models.Profile) ([]int, 
 	}
 
 	return candidates, nil
+}
+
+// isAgeRangeEnforced checks if a profile has age range preferences set
+func isAgeRangeEnforced(p *models.Profile) bool {
+	return p.MinAge.Valid || p.MaxAge.Valid
+}
+
+// isAgeInRange checks if an age falls within the given min/max bounds
+// If enforcing (min/max valid) but age invalid => false
+// Otherwise apply min/max bounds that are valid
+func isAgeInRange(age sql.NullInt32, min sql.NullInt32, max sql.NullInt32) bool {
+	// If age is not valid and we're enforcing bounds, reject
+	if !age.Valid {
+		return false
+	}
+
+	ageValue := age.Int32
+
+	// Check min bound if set
+	if min.Valid {
+		if ageValue < min.Int32 {
+			return false
+		}
+	}
+
+	// Check max bound if set
+	if max.Valid {
+		if ageValue > max.Int32 {
+			return false
+		}
+	}
+
+	return true
+}
+
+// checkOptionalMutualAgePreference checks if two users' age preferences are compatible
+// Enforce user's bounds ONLY if user set them
+// Enforce candidate's bounds ONLY if candidate set them
+// If either side enforces and other person's age is NULL => reject
+// If neither side enforces => allow even if ages are NULL
+func checkOptionalMutualAgePreference(user *models.Profile, cand *models.Profile) bool {
+	userEnforces := isAgeRangeEnforced(user)
+	candEnforces := isAgeRangeEnforced(cand)
+
+	// If neither enforces, allow (even if ages are NULL)
+	if !userEnforces && !candEnforces {
+		return true
+	}
+
+	// If user enforces, check candidate's age against user's bounds
+	if userEnforces {
+		if !isAgeInRange(cand.Age, user.MinAge, user.MaxAge) {
+			return false
+		}
+	}
+
+	// If candidate enforces, check user's age against candidate's bounds
+	if candEnforces {
+		if !isAgeInRange(user.Age, cand.MinAge, cand.MaxAge) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // checkMutualGenderPreference checks if two users have matching gender preferences
@@ -316,10 +356,41 @@ func scoreCandidate(userID, candidateID int, userProfile *models.Profile) (float
 		}
 	}
 
-	// Location match: 0-25 points
-	if userProfile.Location.Valid && candidateProfile.Location.Valid {
-		if userProfile.Location.String == candidateProfile.Location.String {
-			score += 25
+	// Location scoring: GPS distance dominates, location strings are fallback only
+	userHasValidCoords := isValidCoordinate(userProfile.Latitude, userProfile.Longitude)
+	candidateHasValidCoords := isValidCoordinate(candidateProfile.Latitude, candidateProfile.Longitude)
+
+	if userHasValidCoords && candidateHasValidCoords {
+		// ✅ GPS distance-based scoring (dominates location strings)
+		distanceKm := haversineDistanceKm(
+			userProfile.Latitude.Float64,
+			userProfile.Longitude.Float64,
+			candidateProfile.Latitude.Float64,
+			candidateProfile.Longitude.Float64,
+		)
+
+		// Distance buckets for GPS-based scoring
+		if distanceKm <= 5 {
+			score += 25 // Very close (≤ 5 km)
+		} else if distanceKm <= 15 {
+			score += 20 // Close (≤ 15 km)
+		} else if distanceKm <= 30 {
+			score += 10 // Moderate distance (≤ 30 km)
+		}
+		// Beyond 30 km: 0 points (but still included if within maxDistanceKm filter)
+	} else {
+		// ✅ Fallback: Location string matching (only when GPS is missing)
+		if userProfile.Location.Valid && candidateProfile.Location.Valid {
+			userCountry := extractCountry(userProfile.Location)
+			candidateCountry := extractCountry(candidateProfile.Location)
+
+			// Same city (exact location string match)
+			if userProfile.Location.String == candidateProfile.Location.String {
+				score += 25
+			} else if userCountry != "" && candidateCountry != "" && userCountry == candidateCountry {
+				// Same country (but different city)
+				score += 10
+			}
 		}
 	}
 
