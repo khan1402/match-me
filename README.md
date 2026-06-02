@@ -1,3 +1,5 @@
+> 🤝 **Collaborative Project** — Built in equal partnership with [@mahmoudahmed](https://gitea.kood.tech/mahmoudahmed) as part of the Kood/Sisu software development programme.
+
 # Match-Me Dating App
 
 **Designed to be deleted** — A modern, prompt-based dating application inspired by Hinge that helps people form meaningful connections through personality-driven interactions and shared interests.
